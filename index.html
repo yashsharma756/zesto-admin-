@@ -291,5 +291,284 @@ function renderSettings(){
 
   // Delivery Boy Fees Setup
   $("#save-dp-fees").addEventListener("click", () => {
-      db.ref('config').update({
+            db.ref('config').update({
+          payout_0_2: Number($("#dp-fee-1").value),
+          payout_2_5: Number($("#dp-fee-2").value),
+          payout_5_10: Number($("#dp-fee-3").value)
+      }).then(() => toast("Delivery Payouts Updated!"));
+  });
+
+  // Cities Setup
+  $("#cfg-save-cities").addEventListener("click", () => {
+     db.ref('config/allowedCities').set($("#cfg-cities").value.trim()).then(()=>toast("Cities updated!"));
+  });
+
+  // Logo Setup
+  $("#logo-dz").addEventListener("click",()=>$("#logo-upload").click());
+  $("#logo-upload").addEventListener("change",async e=>{const f=e.target.files[0];if(!f)return;const d=await compressToDataURL(f,400,400,.9);$("#logo-thumbs").innerHTML=`<div class="thumb" style="width:96px;height:96px"><img src="${d}"></div>`;$("#logo-upload").dataset.pending=d});
+  $("#logo-save").addEventListener("click",async()=>{
+    const pending=$("#logo-upload").dataset.pending;
+    if(!pending&&!$("#logo-upload").files[0]){
+      if(APP_LOGO_URL){toast("Logo already saved.");return}
+      alert("Please select a logo image.");return;
+    }
+    const d=pending||await compressToDataURL($("#logo-upload").files[0],400,400,.9);
+    db.ref('config/appLogo').set(d).then(()=>toast("Logo saved!")).catch(()=>alert("Failed."));
+  });
+  $("#logo-remove").addEventListener("click",()=>{
+    if(confirm("Remove the app logo?")){
+      db.ref('config/appLogo').set("").then(()=>{toast("Logo removed!");$("#logo-thumbs").innerHTML="";delete $("#logo-upload").dataset.pending}).catch(()=>alert("Failed."));
+    }
+  });
+}
+
+function renderBanners(){
+  $("#admin-title").textContent="Banners & Hero";
+  $("#admin-view").innerHTML=`
+    <div class="admin-card"><h3 style="margin:0 0 10px;font-family:Poppins;color:var(--accentDark)"><i class="fa-solid fa-bullhorn"></i> Animated Banner</h3>
+      <label>Banner Text</label><input id="b-text" type="text" value="${escapeHtml(BANNER_TEXT)}">
+      <div style="margin-top:10px;display:flex;gap:8px"><button class="btn" id="b-save"><i class="fa-solid fa-save"></i> Save</button><button class="btn btn-outline" id="b-remove"><i class="fa-solid fa-trash"></i> Remove</button></div>
+    </div>
+    <div class="admin-card"><h3 style="margin:0 0 10px;font-family:Poppins;color:var(--accentDark)"><i class="fa-solid fa-image"></i> Hero Image</h3>
+      <div class="dropzone" id="hero-dz"><i class="fa-solid fa-cloud-arrow-up" style="font-size:24px"></i><div style="font-weight:700;margin-top:6px">Click to upload</div></div>
+      <input id="hero-upload" type="file" accept="image/*" style="display:none">
+      <div class="thumbs" id="hero-thumbs">${HERO_IMAGE_URL?`<div class="thumb"><img src="${HERO_IMAGE_URL}"></div>`:''}</div>
+      <div style="margin-top:10px"><button class="btn" id="hero-save"><i class="fa-solid fa-save"></i> Save Hero</button></div>
+    </div>`;
+  $("#hero-dz").addEventListener("click",()=>$("#hero-upload").click());
+  $("#b-save").addEventListener("click",()=>{db.ref('config/bannerText').set($("#b-text").value.trim()).then(()=>toast("Saved!"))});
+  $("#b-remove").addEventListener("click",()=>{db.ref('config/bannerText').set("").then(()=>{toast("Removed!");$("#b-text").value=""})});
+  $("#hero-save").addEventListener("click",async()=>{const f=$("#hero-upload").files[0];if(!f){alert("Select image.");return}const d=await compressToDataURL(f,1200,1200,.85);db.ref('config/heroImage').set(d).then(()=>toast("Saved!"))});
+}
+
+let pendingUploads=[];let editingProductId=null;
+function renderAddProduct(product=null){
+  const p=product||{};editingProductId=p.id||null;pendingUploads=p.imageUrls?p.imageUrls.slice():[];
+  $("#admin-title").textContent=editingProductId?"Edit Product":"Add Product";
+  
+  // Dynamic City-Wise Pricing Inputs
+  const cities = (CONFIG.allowedCities || "Jaipur,Delhi,Mumbai").split(',').map(s=>s.trim());
+  let cityInputsHtml = cities.map(c => {
+      const cp = (p.cityPricing && p.cityPricing[c]) ? p.cityPricing[c] : {};
+      return `
+      <div class="city-pricing-row" data-city-name="${escapeHtml(c)}" style="border:1px solid var(--line); padding:12px; border-radius:10px; margin-bottom:10px; background:#fafafa;">
+          <strong style="color:var(--accentDark); font-size:15px;"><i class="fa-solid fa-location-dot"></i> ${escapeHtml(c)}</strong>
+          <div class="row" style="gap:10px; margin-top:8px;">
+             <div style="flex:1"><label>MRP</label><input class="c-mrp" type="number" min="0" value="${cp.mrp||''}" placeholder="Optional"></div>
+             <div style="flex:1"><label>Discount %</label><input class="c-disc" type="number" min="0" max="99" value="${cp.disc||''}" placeholder="%"></div>
+             <div style="flex:1"><label>Sale Price</label><input class="c-price" type="number" min="0" value="${cp.price||''}" placeholder="Override"></div>
+          </div>
+      </div>`;
+  }).join('');
+
+  $("#admin-view").innerHTML=`
+    <div class="admin-card">
+      <label>Product Name *</label><input id="pf-name" required value="${escapeHtml(p.name||'')}">
+      <label>Description</label><textarea id="pf-desc">${escapeHtml(p.description||'')}</textarea>
+      <label>Category *</label><input id="pf-category" required value="${escapeHtml(p.category||'')}">
+      
+      <div class="row" style="gap:10px"><div style="flex:1"><label>Default MRP</label><input id="pf-mrp" type="number" min="0" value="${p.priceMrp||''}"></div><div style="flex:1"><label>Default Discount %</label><input id="pf-disc" type="number" min="0" max="99" value="${p.discountPercent||''}"></div><div style="flex:1"><label>Default Sale Price *</label><input id="pf-price" type="number" min="0" value="${p.price||''}"></div></div>
+      
+      <h4 style="margin:24px 0 8px; color:var(--accentDark); border-bottom:1px solid var(--line); padding-bottom:6px;">City-Wise Pricing (Advanced)</h4>
+      <p class="muted" style="font-size:12px; margin-top:0">Leave these blank if you want the city to use the Default Sale Price above.</p>
+      ${cityInputsHtml}
+
+      <label style="margin-top:16px;">Shipping Charge (\u20B9)</label>
+      <p class="muted" style="font-size:11px; margin-top:0;">Enter 0 for Free Delivery.</p>
+      <input id="pf-shipping" type="number" min="0" value="${p.shipping!==undefined?p.shipping:50}">
+      
+      <label style="display:flex;align-items:center;gap:8px;margin:20px 0;cursor:pointer;background:#FEE2E2;padding:12px;border-radius:10px;border:1px solid #FECACA;width:fit-content">
+        <input type="checkbox" id="pf-out-of-stock" style="width:20px;height:20px;margin:0" ${p.outOfStock ? 'checked' : ''}>
+        <span style="font-weight:700;color:#E11D48">Mark as Out of Stock</span>
+      </label>
+
+      <label>Product Images *</label>
+      <div class="dropzone" id="pf-dz"><i class="fa-solid fa-cloud-arrow-up" style="font-size:24px"></i><div style="font-weight:700;margin-top:6px">Click to upload</div></div>
+      <input id="pf-upload" type="file" accept="image/*" multiple style="display:none">
+      <div class="thumbs" id="pf-thumbs"></div>
+      
+      <div style="margin-top:20px;display:flex;gap:10px">
+        <button class="btn btn-block" id="pf-save"><i class="fa-solid fa-save"></i> ${editingProductId?'Update Product':'Save Product'}</button>
+        <button class="btn btn-outline" id="pf-reset">Reset</button>
+      </div>
+    </div>`;
+  renderThumbs();
+  $("#pf-dz").addEventListener("click",()=>$("#pf-upload").click());
+  $("#pf-upload").addEventListener("change",async e=>{pendingUploads=[];for(const f of Array.from(e.target.files||[])){pendingUploads.push(await compressToDataURL(f,1200,1200,.85))}renderThumbs()});
+  $("#pf-reset").addEventListener("click",()=>{editingProductId=null;pendingUploads=[];renderAddProduct()});
+  $("#pf-save").addEventListener("click",saveProduct);
+}
+
+function renderThumbs(){const t=$("#pf-thumbs");if(t)t.innerHTML=pendingUploads.map(u=>`<div class="thumb"><img src="${u}"></div>`).join("")}
+
+function saveProduct(){
+  const name=$("#pf-name").value.trim();const desc=$("#pf-desc").value.trim();const cat=$("#pf-category").value.trim();
+  let mrp=Number($("#pf-mrp").value||0);let disc=Number($("#pf-disc").value||0);let price=Number($("#pf-price").value||0);
+  
+  let shipStr = $("#pf-shipping").value;
+  const ship = shipStr === '' ? 50 : Number(shipStr);
+
+  const outOfStock = $("#pf-out-of-stock").checked;
+  
+  // Gather City-Wise Pricing
+  const cityPricing = {};
+  $$(".city-pricing-row").forEach(row => {
+      const c = row.dataset.cityName;
+      let cmrp = Number(row.querySelector('.c-mrp').value || 0);
+      let cdisc = Number(row.querySelector('.c-disc').value || 0);
+      let cprice = Number(row.querySelector('.c-price').value || 0);
+      
+      if(!cprice && cmrp && cdisc) cprice = Math.round(cmrp*(100-cdisc)/100);
+      if(!cmrp && cprice && cdisc) cmrp = Math.round(cprice*100/(100-cdisc));
+      if(!cdisc && cmrp && cprice) cdisc = Math.max(0, Math.min(99, Math.round((cmrp-cprice)/cmrp*100)));
+      
+      if (cprice || cmrp) {
+          cityPricing[c] = { mrp: cmrp, disc: cdisc, price: cprice };
+      }
+  });
+
+  if(!price&&mrp&&disc)price=Math.round(mrp*(100-disc)/100);
+  if(!mrp&&price&&disc)mrp=Math.round(price*100/(100-disc));
+  if(!disc&&mrp&&price)disc=Math.max(0,Math.min(99,Math.round((mrp-price)/mrp*100)));
+  
+  if(!name||!price||!cat){alert("Please fill Name, Category, and Default Sale Price.");return}
+  if(!pendingUploads.length){alert("Upload at least one image.");return}
+
+  const data={
+      name, description:desc, category:cat, 
+      priceMrp:mrp, discountPercent:disc, price, 
+      shipping:ship, imageUrls:pendingUploads.slice(), 
+      createdAt:Date.now(), outOfStock, cityPricing
+  };
+
+  if(editingProductId){
+      const p=PRODUCTS.find(x=>x.id===editingProductId);
+      if(p?.firebaseKey){
+          db.ref('products/'+p.firebaseKey).update(data).then(()=>{toast("Product Updated!");editingProductId=null;pendingUploads=[];routeTo("#/products")})
+      }
+  } else {
+      const k=db.ref('products').push().key;
+      db.ref('products/'+k).set({...data,id:uid(),firebaseKey:k}).then(()=>{toast("Product Saved!");pendingUploads=[];renderAddProduct()})
+  }
+}
+
+function renderProducts(){
+  $("#admin-title").textContent="Manage Products";
+  $("#admin-view").innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h3 style="margin:0;font-family:Poppins;color:var(--accentDark)">${PRODUCTS.length} Products</h3><a class="btn btn-sm" href="#/add"><i class="fa-solid fa-plus"></i> Add</a></div>
+    <div style="display:flex;flex-direction:column;gap:12px">${PRODUCTS.map(p=>`
+      <div class="admin-card" style="display:flex;align-items:center;gap:12px;padding:12px; ${p.outOfStock ? 'opacity:0.6' : ''}">
+        <img src="${p.imageUrls?.[0]||''}" style="width:56px;height:56px;object-fit:cover;border-radius:10px;border:1px solid var(--line)">
+        <div style="flex:1">
+           <div style="font-weight:700">${escapeHtml(p.name)} ${p.outOfStock ? '<span style="color:#E11D48;font-size:11px;font-weight:bold;margin-left:4px;">(OUT OF STOCK)</span>' : ''}</div>
+           <div class="muted" style="font-size:13px">${money(p.price||0)} ${p.discountPercent?`<span style="color:var(--accent)">${p.discountPercent}% OFF</span>`:''} | Ship: ${p.shipping === 0 ? 'Free' : money(p.shipping)}</div>
+           ${p.cityPricing && Object.keys(p.cityPricing).length > 0 ? `<div style="font-size:11px;color:var(--accent);margin-top:2px;">Multi-City Pricing Active</div>` : ''}
+        </div>
+        <button class="btn btn-outline btn-sm" data-edit="${p.id}"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-sm btn-danger" data-del="${p.id}"><i class="fa-solid fa-trash"></i></button>
+      </div>`).join('')}</div>`;
+  
+  $$("[data-edit]").forEach(b=>b.onclick=(e)=>{const btn=e.target.closest('[data-edit]'); const p=PRODUCTS.find(x=>x.id===btn.dataset.edit);if(p){routeTo("#/add");setTimeout(()=>renderAddProduct(p),50)}});
+  $$("[data-del]").forEach(b=>b.onclick=(e)=>{const btn=e.target.closest('[data-del]'); const p=PRODUCTS.find(x=>x.id===btn.dataset.del);if(p&&confirm("Delete this product?")){db.ref('products/'+p.firebaseKey).remove().then(()=>toast("Deleted!"))}});
+}
+
+function renderOrders(){
+  $("#admin-title").textContent="Manage Orders";
+  const delStatusClass=s=>{if(s==='Delivered')return'delivered';if(s==='Picked Up')return'picked';if(s==='Accepted')return'accepted';return'unassigned'};
+  $("#admin-view").innerHTML=`
+    <div style="display:flex;flex-direction:column;gap:12px">
+    ${ORDERS.length===0?'<div class="admin-card muted">No orders yet.</div>':ORDERS.map(o=>{
+      const isOnline=o.paymentMethod==='online';
+      const payBadge=isOnline?'<span style="color:#5F259F;font-weight:600">UPI</span>':'<span style="font-weight:600;color:var(--accentDark)">COD</span>';
+      const delStatus=o.deliveryStatus||'Unassigned';
+      const delBoy=o.deliveryBoy?escapeHtml(o.deliveryBoy.name||'—'):'Not assigned';
+      return`<div class="admin-card" style="cursor:pointer;position:relative" data-order="${o.orderId}">
+        <button class="btn btn-sm btn-danger" style="position:absolute;top:12px;right:12px;z-index:2" data-delete-order="${o.firebaseKey}" title="Delete Order"><i class="fa-solid fa-trash"></i></button>
+        <div class="row" style="padding-right:40px"><strong style="color:var(--accentDark)">#${escapeHtml(o.orderId)}</strong><span class="muted" style="font-size:12px">${new Date(o.createdAt).toLocaleString()}</span></div>
+        <div class="row" style="margin-top:6px"><div>${escapeHtml(o.customer?.name||'—')} <span class="muted" style="font-size:11px">(${escapeHtml(o.customer?.city||'—')})</span></div><div style="font-weight:700;color:var(--accentDark)">${money(o.amount)}</div></div>
+        <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <div class="chip">${payBadge}</div>
+          <div class="chip" style="background:var(--accentLight);color:var(--accentDark)">${escapeHtml(o.status)}</div>
+          <span class="del-status-chip ${delStatusClass(delStatus)}"><i class="fa-solid fa-motorcycle"></i> ${delBoy} — ${delStatus}</span>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:4px">${escapeHtml(o.items?.map(i=>i.name+' x'+i.qty).join(', ')||'')}</div>
+      </div>`}).join('')}
+    </div>`;
+  $$("[data-order]").forEach(el=>el.addEventListener("click",e=>{if(e.target.closest("[data-delete-order]"))return;routeTo("#/orders/"+el.dataset.order)}));
+  
+  $$("[data-delete-order]").forEach(btn=>btn.addEventListener("click",e=>{
+    e.stopPropagation();
+    const btnEl = e.target.closest('[data-delete-order]');
+    if(confirm("Are you sure you want to DELETE this order? This cannot be undone.")){
+      db.ref('orders/'+btnEl.dataset.deleteOrder).remove().then(()=>toast("Order deleted!")).catch(()=>alert("Failed to delete."));
+    }
+  }));
+}
+
+function renderOrderDetail(orderId){
+  const o=ORDERS.find(x=>x.orderId===orderId);if(!o){renderOrders();return}
+  $("#admin-title").textContent="Order #"+o.orderId;
+  const isOnline=o.paymentMethod==='online';
+  const sub=o.items.reduce((a,it)=>a+((it.price||0)*it.qty),0);
+  const shipT=o.items.reduce((a,it)=>a+(typeof it.shipping === 'number' ? it.shipping : 50),0);
+  const locHtml=o.deliveryLocation?`<div class="order-detail-card"><h4><i class="fa-solid fa-location-dot"></i> Delivery Location</h4><div class="muted">Lat: ${o.deliveryLocation.lat.toFixed(5)}, Lng: ${o.deliveryLocation.lng.toFixed(5)}</div><div id="order-map" class="map-container"></div></div>`:'';
+  
+  // Timer & Payout Logic
+  const currentTimer = o.deliveryTimer || 30;
+  const payout0_2 = CONFIG.payout_0_2 || 20;
+  const payout2_5 = CONFIG.payout_2_5 || 40;
+  const payout5_10 = CONFIG.payout_5_10 || 60;
+  const currentPayout = o.deliveryPayout !== undefined ? o.deliveryPayout : payout0_2;
+
+  const delBoyHtml=o.deliveryBoy?`<div class="order-detail-card"><h4><i class="fa-solid fa-motorcycle"></i> Delivery Partner</h4>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px">
+      <div><strong>Name:</strong> ${escapeHtml(o.deliveryBoy.name||'—')}</div>
+      <div><strong>Phone:</strong> ${escapeHtml(o.deliveryBoy.phone||'—')}</div>
+      <div><strong>Email:</strong> ${escapeHtml(o.deliveryBoy.email||'—')}</div>
+      <div><strong>Status:</strong> <span class="del-status-chip ${o.deliveryStatus==='Delivered'?'delivered':o.deliveryStatus==='Picked Up'?'picked':'accepted'}">${escapeHtml(o.deliveryStatus||'Accepted')}</span></div>
+    </div>
+    <div style="margin-top:8px; font-weight:bold; color:var(--accentDark)">Delivery Boy Payout for this order: ${money(currentPayout)}</div>
+    </div>`:`<div class="order-detail-card"><h4><i class="fa-solid fa-motorcycle"></i> Delivery Partner</h4><div class="muted">Not yet assigned.</div></div>`;
+
+  $("#admin-view").innerHTML=`
+    <div class="admin-card">
+      <div class="row"><h3 style="margin:0;font-family:Poppins;color:var(--accentDark)">Order #${escapeHtml(o.orderId)}</h3><div class="muted">${new Date(o.createdAt).toLocaleString()}</div></div>
+      <div class="sep"></div>
+      <div class="order-detail-card">
+        <h4><i class="fa-solid fa-user"></i> Customer Details</h4>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px">
+          <div><strong>Name:</strong> ${escapeHtml(o.customer?.name||'—')}</div>
+          <div><strong>Email:</strong> ${escapeHtml(o.customer?.email||'—')}</div>
+          <div><strong>Phone:</strong> ${escapeHtml(o.customer?.phone||'—')}</div>
+          <div><strong>Pincode:</strong> ${escapeHtml(o.customer?.pincode||'—')}</div>
+        </div>
+        <div style="font-size:13px;margin-top:4px"><strong>Address:</strong> ${escapeHtml(o.customer?.address||'—')}, ${escapeHtml(o.customer?.city||'')} ${escapeHtml(o.customer?.state||'')}</div>
+        ${o.customer?.landmark?`<div style="font-size:13px"><strong>Landmark:</strong> ${escapeHtml(o.customer.landmark)}</div>`:''}
+      </div>
+      <div class="order-detail-card">
+        <h4><i class="fa-solid fa-box"></i> Order Items</h4>
+        ${o.items.map(it=>{const prod=PRODUCTS.find(x=>x.id===it.productId);return`
+          <div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">
+            <img src="${prod?.imageUrls?.[0]||''}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">
+            <div style="flex:1"><div style="font-weight:600">${escapeHtml(it.name)}</div><div class="muted" style="font-size:12px">Qty: ${it.qty} | Price: ${money(it.price||0)} | Ship: ${typeof it.shipping === 'number' ? money(it.shipping) : money(50)}</div></div>
+            <div style="font-weight:700;color:var(--accentDark)">${money((it.price||0)*it.qty+(typeof it.shipping === 'number' ? it.shipping : 50))}</div>
+          </div>`}).join('')}
+        <div style="margin-top:10px">
+          <div class="row"><strong>Subtotal</strong><strong>${money(sub)}</strong></div>
+          <div class="row"><strong>Customer Shipping Paid</strong><strong>${shipT === 0 ? 'Free' : money(shipT)}</strong></div>
+          <div class="row" style="font-size:16px;margin-top:4px;color:var(--accentDark)"><strong>Total Order Value</strong><strong>${money(o.amount)}</strong></div>
+        </div>
+      </div>
+      <div class="order-detail-card">
+        <h4><i class="fa-solid fa-credit-card"></i> Payment</h4>
+        <div style="font-size:13px"><strong>Method:</strong> ${isOnline?'Online Payment (UPI)':'Cash on Delivery'}</div>
+        ${o.upiTxnId?`<div style="font-size:13px"><strong>UPI Txn ID:</strong> ${escapeHtml(o.upiTxnId)}</div>`:''}
+      </div>
+      
+      ${locHtml}
+      ${delBoyHtml}
+      
+      <!-- New Update & Configuration Section for Timer and Delivery Payout -->
+      <div class="order-detail-card" style="background:#FFF9C4; border-color:#FFC107;">
+        <h4><i class="fa-so
   
