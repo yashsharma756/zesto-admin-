@@ -1,1 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Zesto — Admin Panel</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script>
+  const firebaseConfig={databaseURL:"https://saphau-food-default-rtdb.firebaseio.com/",projectId:"318798322657"};
+  const app=firebase.initializeApp(firebaseConfig);const db=firebase.database();
+</script>
+<style>
+:root{
+  --primary:#7cbf5c;--bg:#F6F6F6;--surface:#FFFFFF;--line:#E2E8D9;--muted:#6B7280;
+  --accent:#7cbf5c;--accentText:#FFFFFF;--success:#18A957;--radius:16px;
+  --shadow:0 1px 2px rgba(10,10,10,.06),0 8px 24px rgba(10,10,10,.05);
+  --shadow-sm:0 1px 3px rgba(10,10,10,.08);
+  --safe:env(safe-area-inset-bottom,0px);
+  --accentLight:#e8f5e0;--accentDark:#5a9a3e;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:#111;font-family:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;line-height:1.4;font-size:14px}
+img{max-width:100%;display:block}
+button{font:inherit;cursor:pointer}
+a{color:inherit;text-decoration:none}
+.topbar{position:sticky;top:0;z-index:20;background:#fff;backdrop-filter:saturate(120%) blur(6px);border-bottom:1px solid var(--line)}
+.topbar-inner{height:56px;display:flex;align-items:center;gap:10px;padding:0 16px;max-width:1100px;margin:0 auto}
+.topbar-logo{height:36px;width:auto;border-radius:8px;flex-shrink:0}
+.title{font-family:Poppins,sans-serif;font-size:20px;font-weight:700;margin:0;color:var(--accentDark)}
+.icon-round{width:36px;height:36px;border-radius:999px;border:1px solid var(--line);background:#fff;display:inline-grid;place-items:center;color:#111;box-shadow:var(--shadow-sm)}
+.admin-wrap{max-width:1100px;margin:0 auto;padding:16px;padding-bottom:120px}
+.admin-card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:16px;margin-bottom:16px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;font-weight:700;border:none;border-radius:14px;padding:12px 16px;background:var(--accent);color:var(--accentText);font-size:14px;transition:background .2s}
+.btn:hover{background:var(--accentDark)}
+.btn:active{transform:translateY(1px)}
+.btn-outline{background:#fff;color:#111;border:1px solid var(--line)}
+.btn-outline:hover{background:var(--accentLight);border-color:var(--accent)}
+.btn-block{width:100%}
+.btn-sm{padding:8px 12px;font-size:13px;border-radius:10px}
+.btn-danger{background:#E11D48;color:#fff;border:1px solid #E11D48}
+.btn-danger:hover{background:#be123c}
+.btn-success{background:var(--success);color:#fff;border:1px solid var(--success)}
+.muted{color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:13px}
+input,textarea,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff;font:inherit;font-size:14px}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,191,92,.15)}
+textarea{min-height:80px;resize:vertical}
+label{font-size:13px;color:#111;margin:8px 0 4px;display:block;font-weight:600}
+.row{display:flex;align-items:center;justify-content:space-between}
+.sep{height:1px;background:var(--line);margin:10px 0}
+.table{width:100%;border-collapse:collapse;font-size:13px}
+.table th,.table td{border-bottom:1px solid var(--line);padding:10px;text-align:left;vertical-align:top}
+.table th{background:var(--accentLight);font-weight:700;color:var(--accentDark);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+.dropzone{border:2px dashed var(--accent);border-radius:14px;padding:18px;text-align:center;background:var(--accentLight);color:var(--accentDark);cursor:pointer;transition:background .2s}
+.dropzone:hover{background:#d4edca}
+.thumbs{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+.thumb{width:72px;height:72px;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.review-stars{color:#FFD700;font-size:14px}
+.review-stars .empty{color:#ddd}
+.toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:var(--accentDark);color:#fff;padding:10px 14px;border-radius:999px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:60}
+.toast.show{opacity:1}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
+.stat-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;text-align:center;box-shadow:var(--shadow-sm)}
+.stat-card .stat-num{font-size:28px;font-weight:700;font-family:Poppins;color:var(--accent)}
+.stat-card .stat-label{font-size:12px;color:var(--muted);margin-top:4px}
+.order-detail-card{background:var(--accentLight);border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:10px}
+.order-detail-card h4{margin:0 0 8px;font-family:Poppins;font-size:14px;color:var(--accentDark)}
+.map-container{width:100%;height:200px;border-radius:12px;overflow:hidden;border:1px solid var(--line);margin-top:8px}
+#admin-view{display:none}
+.nav-grid{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+@media(min-width:600px){.nav-grid{grid-template-columns:repeat(4,1fr)}}
+.nav-card{display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px;border:1px solid var(--line);border-radius:14px;background:#fff;cursor:pointer;transition:box-shadow .2s,transform .2s;text-align:center}
+.nav-card:hover{box-shadow:var(--shadow);transform:translateY(-2px);border-color:var(--accent)}
+.nav-card i{font-size:28px;color:var(--accent)}
+.nav-card span{font-weight:600;font-size:13px}
+.del-status-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600}
+.del-status-chip.unassigned{background:#FFF7E6;color:#D97706;border:1px solid #FFE0A3}
+.del-status-chip.accepted{background:#E0F2FE;color:#0284C7;border:1px solid #BAE6FD}
+.del-status-chip.picked{background:#F3E8FF;color:#7C3AED;border:1px solid #DDD6FE}
+.del-status-chip.delivered{background:#E6F7EE;color:#18A957;border:1px solid #CFF7DF}
+.earning-box{background:var(--accentLight);border:1px solid var(--accent);border-radius:10px;padding:12px;text-align:center;}
+.earning-box .amt{font-size:22px;font-weight:bold;color:var(--accentDark);font-family:Poppins}
+.earning-box .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px}
+.payout-preset{cursor:pointer;transition:all 0.2s;}
+.payout-preset:hover{background:var(--accent);color:#fff;border-color:var(--accent);}
+</style>
+</head>
+<body>
 
+<header class="topbar">
+  <div class="topbar-inner">
+    <button id="admin-back" class="icon-round" aria-label="Back" style="display:none" onclick="history.back()"><i class="fa-solid fa-arrow-left"></i></button>
+    <img id="admin-logo" class="topbar-logo" src="" alt="Zesto" style="display:none">
+    <h1 id="admin-title" class="title"><i class="fa-solid fa-shield-halved" style="color:var(--accent)"></i> Admin Panel</h1>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button class="btn btn-outline btn-sm" id="admin-logout" style="display:none"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+    </div>
+  </div>
+</header>
+
+<div class="admin-wrap">
+  <div id="admin-login" class="admin-card" style="max-width:480px;margin:40px auto">
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="width:64px;height:64px;border-radius:999px;background:var(--accentLight);display:grid;place-items:center;margin:0 auto 10px"><i class="fa-solid fa-lock" style="font-size:28px;color:var(--accent)"></i></div>
+      <h2 style="margin:0;font-family:Poppins;color:var(--accentDark)">Admin Login</h2>
+    </div>
+    <form id="admin-login-form" autocomplete="off">
+      <label>Admin ID</label><input id="adm-id" type="text" placeholder="Admin ID" required>
+      <label>Password</label><input id="adm-pw" type="password" placeholder="Password" required>
+      <div style="margin-top:14px"><button class="btn btn-block" type="submit"><i class="fa-solid fa-arrow-right-to-bracket"></i> Login</button></div>
+    </form>
+  </div>
+  <div id="admin-view"></div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const ADMIN_ID="Madhav@store";const ADMIN_PW="Madhav@Sharma123";
+const $=s=>document.querySelector(s);const $$=s=>Array.from(document.querySelectorAll(s));
+const money=n=>'\u20B9'+(n||0).toLocaleString("en-IN");
+const uid=()=>'p_'+Math.random().toString(36).slice(2)+Date.now().toString(36);
+const escapeHtml=(s="")=>s.replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
+const toast=msg=>{const t=$("#toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800)};
+const routeTo=hash=>{location.hash=hash};
+function renderStarIcons(r,max=5){let h='';for(let i=1;i<=max;i++)h+=i<=r?'<i class="fa-solid fa-star"></i>':'<i class="fa-solid fa-star empty"></i>';return h}
+
+let PRODUCTS=[],ORDERS=[],CUSTOMERS=[],RATINGS=[],DELIVERY_APPS=[];
+let HERO_IMAGE_URL="",BANNER_TEXT="",APP_LOGO_URL="";
+let CONFIG={};
+let IS_AUTHED=sessionStorage.getItem("sf_admin_auth")==="1";
+
+const productsRef=db.ref('products');const ordersRef=db.ref('orders');const ratingsRef=db.ref('ratings');
+const configRef=db.ref('config');const deliveryRef=db.ref('deliveryApplications');
+
+productsRef.on('value',s=>{PRODUCTS=s.val()?Object.values(s.val()):[];PRODUCTS.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));tryRender()});
+ordersRef.on('value',s=>{ORDERS=s.val()?Object.values(s.val()):[];ORDERS.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));rebuildCustomers();tryRender()});
+ratingsRef.on('value',s=>{RATINGS=s.val()?Object.values(s.val()):[];tryRender()});
+configRef.on('value',s=>{
+  CONFIG = s.val()||{};
+  HERO_IMAGE_URL=CONFIG.heroImage||"";BANNER_TEXT=CONFIG.bannerText||"";APP_LOGO_URL=CONFIG.appLogo||"";
+  if(APP_LOGO_URL){$("#admin-logo").src=APP_LOGO_URL;$("#admin-logo").style.display="block"}else{$("#admin-logo").style.display="none"}
+  tryRender()});
+deliveryRef.on('value',s=>{DELIVERY_APPS=s.val()?Object.values(s.val()):[];DELIVERY_APPS.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));tryRender()});
+
+function rebuildCustomers(){
+  const map={};
+  for(const o of ORDERS){const k=(o.customer?.email||o.customer?.phone||"").toLowerCase();if(!k)continue;if(!map[k])map[k]={key:k,name:o.customer?.name||"",email:o.customer?.email||"",phone:o.customer?.phone||"",orders:0,total:0,last:0};map[k].orders++;map[k].total+=o.amount||0;map[k].last=Math.max(map[k].last,o.createdAt||0)}
+  CUSTOMERS=Object.values(map).sort((a,b)=>b.last-a.last);
+}
+function tryRender(){if(IS_AUTHED)render()}
+
+$("#admin-login-form").addEventListener("submit",e=>{
+  e.preventDefault();
+  if($("#adm-id").value.trim().toLowerCase()===ADMIN_ID.toLowerCase()&&$("#adm-pw").value.trim()===ADMIN_PW){
+    IS_AUTHED=true;sessionStorage.setItem("sf_admin_auth","1");
+    $("#admin-login").style.display="none";$("#admin-view").style.display="block";$("#admin-logout").style.display="inline-flex";render();
+  }else alert("Invalid credentials.");
+});
+$("#admin-logout").addEventListener("click",()=>{IS_AUTHED=false;sessionStorage.removeItem("sf_admin_auth");location.reload()});
+if(IS_AUTHED){$("#admin-login").style.display="none";$("#admin-view").style.display="block";$("#admin-logout").style.display="inline-flex"}
+window.addEventListener("hashchange",render);
+
+function render(){
+  if(!IS_AUTHED)return;
+  const h=location.hash.replace(/^#\/?/,"");const parts=h.split("/").filter(Boolean);
+  const page=parts[0]||"dashboard";const sub=parts[1]||"";
+  $("#admin-back").style.display=page==="dashboard"?"none":"inline-grid";
+  if(page==="dashboard")renderDashboard();
+  else if(page==="settings")renderSettings();
+  else if(page==="banners")renderBanners();
+  else if(page==="add")renderAddProduct();
+  else if(page==="products")renderProducts();
+  else if(page==="orders"&&sub)renderOrderDetail(sub);
+  else if(page==="orders")renderOrders();
+  else if(page==="customers")renderCustomers();
+  else if(page==="delivery"&&sub)renderDeliveryDetail(sub);
+  else if(page==="delivery")renderDeliveryApps();
+  else if(page==="reviews")renderReviews();
+  else renderDashboard();
+}
+
+function getDeliveryStats(email){
+  if(!email)return{accepted:0,pickedUp:0,delivered:0,total:0, orders:[]};
+  const e=email.toLowerCase();
+  const myOrders=ORDERS.filter(o=>o.deliveryBoy&&o.deliveryBoy.email&&o.deliveryBoy.email.toLowerCase()===e);
+  return{
+      accepted:myOrders.filter(o=>o.deliveryStatus==='Accepted').length,
+      pickedUp:myOrders.filter(o=>o.deliveryStatus==='Picked Up').length,
+      delivered:myOrders.filter(o=>o.deliveryStatus==='Delivered').length,
+      total:myOrders.length,
+      orders: myOrders
+  };
+}
+
+function renderDashboard(){
+  $("#admin-title").innerHTML='<i class="fa-solid fa-shield-halved" style="color:var(--accent)"></i> Dashboard';
+  const totalRevenue=ORDERS.reduce((a,o)=>a+(o.amount||0),0);
+  const pendingOrders=ORDERS.filter(o=>!o.status?.includes("Delivered")&&!o.status?.includes("Cancelled")).length;
+  const approvedDrivers=DELIVERY_APPS.filter(a=>a.status==='Approved').length;
+  
+  // Store status logic
+  const storeStatus = CONFIG.storeLocked ? 
+      '<span style="color:#E11D48;font-weight:700"><i class="fa-solid fa-lock"></i> CLOSED</span>' : 
+      '<span style="color:var(--success);font-weight:700"><i class="fa-solid fa-door-open"></i> OPEN</span>';
+
+  $("#admin-view").innerHTML=`
+    <div class="admin-card row" style="padding:12px 16px;">
+       <div><strong>Store Status:</strong> ${storeStatus}</div>
+       <a class="btn btn-sm btn-outline" href="#/settings">Change Settings</a>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-num">${PRODUCTS.length}</div><div class="stat-label">Products</div></div>
+      <div class="stat-card"><div class="stat-num">${ORDERS.length}</div><div class="stat-label">Total Orders</div></div>
+      <div class="stat-card"><div class="stat-num">${pendingOrders}</div><div class="stat-label">Pending</div></div>
+      <div class="stat-card"><div class="stat-num">${money(totalRevenue)}</div><div class="stat-label">Revenue</div></div>
+      <div class="stat-card"><div class="stat-num">${CUSTOMERS.length}</div><div class="stat-label">Customers</div></div>
+      <div class="stat-card"><div class="stat-num">${approvedDrivers}/${DELIVERY_APPS.length}</div><div class="stat-label">Delivery Boys</div></div>
+    </div>
+    <div class="nav-grid">
+      <a class="nav-card" href="#/settings"><i class="fa-solid fa-gear"></i><span>Settings & Config</span></a>
+      <a class="nav-card" href="#/banners"><i class="fa-solid fa-images"></i><span>Banners & Hero</span></a>
+      <a class="nav-card" href="#/add"><i class="fa-solid fa-plus-circle"></i><span>Add Product</span></a>
+      <a class="nav-card" href="#/products"><i class="fa-solid fa-boxes-stacked"></i><span>Products</span></a>
+      <a class="nav-card" href="#/orders"><i class="fa-solid fa-receipt"></i><span>Orders</span></a>
+      <a class="nav-card" href="#/customers"><i class="fa-solid fa-users"></i><span>Customers</span></a>
+      <a class="nav-card" href="#/delivery"><i class="fa-solid fa-motorcycle"></i><span>Delivery Partners</span></a>
+      <a class="nav-card" href="#/reviews"><i class="fa-solid fa-star"></i><span>Reviews</span></a>
+    </div>`;
+}
+
+function renderSettings(){
+  $("#admin-title").textContent="Settings & Configuration";
+  
+  $("#admin-view").innerHTML=`
+    <div class="admin-card" style="${CONFIG.storeLocked ? 'border:2px solid #E11D48; background:#FFF0F2' : 'border:2px solid var(--success); background:#F0FDF4'}">
+      <h3 style="margin:0 0 12px;font-family:Poppins;"><i class="fa-solid fa-store"></i> Store Lock (Open/Close)</h3>
+      <p class="muted" style="margin:0 0 12px;font-size:13px">Turn off the store at night or when you are not accepting orders. Users will not be able to checkout.</p>
+      <select id="cfg-lock" style="max-width:300px; font-weight:bold;">
+         <option value="open" ${!CONFIG.storeLocked ? 'selected' : ''}>🟢 Store is OPEN</option>
+         <option value="locked" ${CONFIG.storeLocked ? 'selected' : ''}>🔴 Store is CLOSED (Locked)</option>
+      </select>
+      <div style="margin-top:10px;"><button class="btn btn-sm" id="save-lock">Update Status</button></div>
+    </div>
+
+    <div class="admin-card">
+      <h3 style="margin:0 0 12px;font-family:Poppins;color:var(--accentDark)"><i class="fa-solid fa-map-location-dot"></i> Delivery Partner Payouts</h3>
+      <p class="muted" style="margin:0 0 12px;font-size:13px">Set distance-based earnings for your delivery boys. This amount goes to their digital wallet per delivery.</p>
+      <div class="row" style="gap:10px; flex-wrap:wrap;">
+         <div style="flex:1"><label>0 to 2 km (\u20B9)</label><input id="dp-fee-1" type="number" value="${CONFIG.payout_0_2 || 20}"></div>
+         <div style="flex:1"><label>2 to 5 km (\u20B9)</label><input id="dp-fee-2" type="number" value="${CONFIG.payout_2_5 || 40}"></div>
+         <div style="flex:1"><label>5 to 10 km (\u20B9)</label><input id="dp-fee-3" type="number" value="${CONFIG.payout_5_10 || 60}"></div>
+      </div>
+      <div style="margin-top:10px;"><button class="btn btn-sm" id="save-dp-fees">Save Payout Rules</button></div>
+    </div>
+
+    <div class="admin-card">
+      <h3 style="margin:0 0 12px;font-family:Poppins;color:var(--accentDark)"><i class="fa-solid fa-city"></i> App Allowed Cities</h3>
+      <p class="muted" style="margin:0 0 12px;font-size:13px">Enter comma-separated cities where Zesto is active.</p>
+      <input id="cfg-cities" type="text" placeholder="E.g. Jaipur, Delhi, Mumbai" value="${escapeHtml(CONFIG.allowedCities || 'Jaipur, Delhi, Mumbai')}">
+      <button class="btn btn-sm" id="cfg-save-cities" style="margin-top:10px"><i class="fa-solid fa-save"></i> Save Cities</button>
+    </div>
+
+    <div class="admin-card">
+      <h3 style="margin:0 0 12px;font-family:Poppins;color:var(--accentDark)"><i class="fa-solid fa-palette"></i> App Logo</h3>
+      <div class="dropzone" id="logo-dz"><i class="fa-solid fa-cloud-arrow-up" style="font-size:24px"></i><div style="font-weight:700;margin-top:6px">Click to upload logo</div></div>
+      <input id="logo-upload" type="file" accept="image/*" style="display:none">
+      <div class="thumbs" id="logo-thumbs">${APP_LOGO_URL?`<div class="thumb" style="width:96px;height:96px"><img src="${APP_LOGO_URL}"></div>`:''}</div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button class="btn" id="logo-save"><i class="fa-solid fa-save"></i> Save Logo</button>
+        <button class="btn btn-danger" id="logo-remove"><i class="fa-solid fa-trash"></i> Remove</button>
+      </div>
+    </div>`;
+
+  // Store Lock Setup
+  $("#save-lock").addEventListener("click", () => {
+     const locked = $("#cfg-lock").value === 'locked';
+     db.ref('config/storeLocked').set(locked).then(()=>{
+         toast(locked ? "Store is now CLOSED!" : "Store is now OPEN!");
+         renderSettings();
+     });
+  });
+
+  // Delivery Boy Fees Setup
+  $("#save-dp-fees").addEventListener("click", () => {
+      db.ref('config').update({
+  
