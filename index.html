@@ -569,6 +569,213 @@ function renderOrderDetail(orderId){
       ${delBoyHtml}
       
       <!-- New Update & Configuration Section for Timer and Delivery Payout -->
-      <div class="order-detail-card" style="background:#FFF9C4; border-color:#FFC107;">
-        <h4><i class="fa-so
+      <div class="order-detail-card" style="background:#FFF9C4; border-color:#FFC107;"
+      <h4><i class="fa-solid fa-pen-to-square"></i> Order Configurations & Updates</h4>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+            <div>
+                <label>Order Status</label>
+                <select id="od-status">
+                    ${["COD - Placed","Online Payment - Verifying","Online Payment - Confirmed","Processing","Shipped","Out for Delivery","Delivered (COD)","Delivered","Cancelled"].map(s=>`<option ${o.status===s?'selected':''}>${s}</option>`).join('')}
+                </select>
+            </div>
+            <div>
+                <label>Tracking URL</label>
+                <input id="od-track" placeholder="Tracking URL" value="${escapeHtml(o.trackingUrl||'')}">
+            </div>
+            <div>
+                <label>Delivery Timer (Minutes)</label>
+                <input id="od-timer" type="number" min="1" value="${currentTimer}">
+            </div>
+            <div>
+                <label>Assign Delivery Boy Payout (\u20B9)</label>
+                <p class="muted" style="font-size:10px; margin:0 0 6px 0; line-height:1.2;">Check map distance and click a button to assign the payout.</p>
+                <div style="display:flex; gap:4px; margin-bottom:6px; flex-wrap:wrap;">
+                    <button class="chip payout-preset" style="font-size:11px; padding:4px 8px" type="button" data-val="${payout0_2}">0-2km (${money(payout0_2)})</button>
+                    <button class="chip payout-preset" style="font-size:11px; padding:4px 8px" type="button" data-val="${payout2_5}">2-5km (${money(payout2_5)})</button>
+                    <button class="chip payout-preset" style="font-size:11px; padding:4px 8px" type="button" data-val="${payout5_10}">5-10km (${money(payout5_10)})</button>
+                </div>
+                <input id="od-payout" type="number" value="${currentPayout}">
+            </div>
+        </div>
+        <button class="btn btn-block btn-success" id="od-save"><i class="fa-solid fa-save"></i> Save All Updates</button>
+      </div>
+
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <a class="btn btn-outline btn-sm" href="#/orders"><i class="fa-solid fa-arrow-left"></i> Back</a>
+        <button class="btn btn-sm btn-danger" id="od-delete"><i class="fa-solid fa-trash"></i> Delete Order</button>
+      </div>
+    </div>`;
+
+  if(o.deliveryLocation){
+      setTimeout(()=>{
+          const mapEl = document.getElementById('order-map');
+          if(mapEl && mapEl._leaflet_id) { mapEl._leaflet_id = null; }
+          const map=L.map('order-map').setView([o.deliveryLocation.lat,o.deliveryLocation.lng],15);
+          L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; CartoDB'}).addTo(map);
+          L.marker([o.deliveryLocation.lat,o.deliveryLocation.lng]).addTo(map);
+          setTimeout(() => map.invalidateSize(), 300);
+      },100);
+  }
+  
+  // Logic for Payout Preset Buttons
+  $$(".payout-preset").forEach(btn => {
+      btn.addEventListener("click", () => {
+          $("#od-payout").value = btn.dataset.val;
+      });
+  });
+
+  $("#od-save").addEventListener("click",()=>{
+      const status=$("#od-status").value;
+      const track=$("#od-track").value.trim();
+      const timer=Number($("#od-timer").value) || 30;
+      const payout=Number($("#od-payout").value) || 0;
+
+      db.ref('orders/'+o.firebaseKey).update({
+          status, 
+          trackingUrl: track, 
+          deliveryTimer: timer, 
+          deliveryPayout: payout
+      }).then(()=>toast("Order Updated!")).catch(()=>alert("Failed."));
+  });
+
+  $("#od-delete").addEventListener("click",()=>{if(confirm("DELETE this order permanently?")){db.ref('orders/'+o.firebaseKey).remove().then(()=>{toast("Order deleted!");routeTo("#/orders")}).catch(()=>alert("Failed."))}});
+}
+
+function renderCustomers(){
+  $("#admin-title").textContent="Customers";
+  $("#admin-view").innerHTML=`<div class="admin-card"><table class="table"><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Orders</th><th>Total</th><th>Last</th></tr></thead><tbody>
+    ${CUSTOMERS.length===0?'<tr><td colspan="6" class="muted">No customers yet.</td></tr>':CUSTOMERS.map(c=>`<tr><td>${escapeHtml(c.name)}</td><td>${escapeHtml(c.email)}</td><td>${escapeHtml(c.phone)}</td><td>${c.orders}</td><td>${money(c.total)}</td><td>${c.last?new Date(c.last).toLocaleDateString():'—'}</td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+
+function renderDeliveryApps(){
+  $("#admin-title").textContent="Delivery Partners";
+  $("#admin-view").innerHTML=`
+    <div style="display:flex;flex-direction:column;gap:12px">
+    ${DELIVERY_APPS.length===0?'<div class="admin-card muted">No applications yet.</div>':DELIVERY_APPS.map(a=>{
+      const stats=getDeliveryStats(a.email);
+      return`<div class="admin-card" data-key="${a.firebaseKey}">
+        <div class="row"><div><div style="font-weight:700;font-size:16px;color:var(--accentDark)">${escapeHtml(a.name)}</div><div class="muted" style="font-size:13px">${escapeHtml(a.email)} | ${escapeHtml(a.phone)}</div></div>
+          <div class="chip" style="font-size:12px;${a.status==='Approved'?'background:#E6F7EE;color:#18A957;border-color:#18A957':a.status==='Rejected'?'background:#FEE2E2;color:#E11D48;border-color:#E11D48':''}">${escapeHtml(a.status)}</div>
+        </div>
+        ${a.status==='Approved'?`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0">
+          <div style="text-align:center;padding:8px;background:var(--accentLight);border-radius:10px"><div style="font-weight:700;color:var(--accent)">${stats.accepted}</div><div class="muted" style="font-size:11px">Accepted</div></div>
+          <div style="text-align:center;padding:8px;background:#F3E8FF;border-radius:10px"><div style="font-weight:700;color:#7C3AED">${stats.pickedUp}</div><div class="muted" style="font-size:11px">Picked Up</div></div>
+          <div style="text-align:center;padding:8px;background:#E6F7EE;border-radius:10px"><div style="font-weight:700;color:var(--success)">${stats.delivered}</div><div class="muted" style="font-size:11px">Delivered</div></div>
+        </div>`:''}
+        <div class="sep"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px">
+          <div><strong>Vehicle:</strong> ${escapeHtml(a.vehicle||'—')}</div>
+          <div><strong>Availability:</strong> ${escapeHtml(a.availability||'—')}</div>
+          <div><strong>From:</strong> ${escapeHtml(a.deliveryFrom||'—')}</div>
+          <div><strong>To:</strong> ${escapeHtml(a.deliveryTo||'—')}</div>
+          <div><strong>City:</strong> ${escapeHtml(a.city||'—')}</div>
+          <div><strong>License:</strong> ${escapeHtml(a.license||'—')}</div>
+        </div>
+        ${a.experience?`<div style="margin-top:6px;font-size:13px"><strong>Experience:</strong> ${escapeHtml(a.experience)}</div>`:''}
+        <div class="muted" style="font-size:11px;margin-top:6px">Applied: ${new Date(a.createdAt).toLocaleString()}</div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <select class="da-status" style="max-width:160px"><option ${a.status==='Pending'?'selected':''}>Pending</option><option ${a.status==='Approved'?'selected':''}>Approved</option><option ${a.status==='Rejected'?'selected':''}>Rejected</option></select>
+          <button class="btn btn-sm btn-success da-save"><i class="fa-solid fa-save"></i> Update</button>
+          <button class="btn btn-sm btn-danger da-del"><i class="fa-solid fa-trash"></i></button>
+          ${a.status==='Approved'?`<button class="btn btn-sm btn-outline da-view" data-email="${escapeHtml(a.email)}"><i class="fa-solid fa-eye"></i> Earnings & Orders</button>`:''}
+        </div>
+      </div>`}).join('')}
+    </div>`;
+  $$(".da-save").forEach(btn=>btn.addEventListener("click",(e)=>{const card=e.target.closest("[data-key]");const k=card.dataset.key;const s=card.querySelector(".da-status").value;db.ref('deliveryApplications/'+k).update({status:s}).then(()=>toast("Updated!"))}));
+  $$(".da-del").forEach(btn=>btn.addEventListener("click",(e)=>{const card=e.target.closest("[data-key]");if(confirm("Delete this application?")){db.ref('deliveryApplications/'+card.dataset.key).remove().then(()=>toast("Deleted!"))}}));
+  $$(".da-view").forEach(btn=>btn.addEventListener("click",(e)=>{const b=e.target.closest(".da-view"); routeTo("#/delivery/"+encodeURIComponent(b.dataset.email))}));
+}
+
+function renderDeliveryDetail(email){
+  const decodedEmail=decodeURIComponent(email);
+  const app=DELIVERY_APPS.find(a=>a.email&&a.email.toLowerCase()===decodedEmail.toLowerCase());
+  if(!app){renderDeliveryApps();return}
+  $("#admin-title").textContent=app.name+"'s Earnings";
+  
+  const stats=getDeliveryStats(decodedEmail);
+  const myOrders = stats.orders;
+  
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfWeek = startOfDay - (now.getDay() * 86400000);
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+  let todayEarning = 0, weekEarning = 0, monthEarning = 0, totalEarning = 0;
+  let todayOrders = 0, weekOrders = 0, monthOrders = 0;
+
+  myOrders.filter(o=>o.deliveryStatus==='Delivered').forEach(o => {
+      const payout = o.deliveryPayout !== undefined ? o.deliveryPayout : (o.items ? o.items.reduce((s, it) => s + (typeof it.shipping === 'number' ? it.shipping : 50), 0) : 50);
+      
+      totalEarning += payout;
+      if (o.createdAt >= startOfDay) { todayEarning += payout; todayOrders++; }
+      if (o.createdAt >= startOfWeek) { weekEarning += payout; weekOrders++; }
+      if (o.createdAt >= startOfMonth) { monthEarning += payout; monthOrders++; }
+  });
+
+  const delStatusClass=s=>{if(s==='Delivered')return'delivered';if(s==='Picked Up')return'picked';if(s==='Accepted')return'accepted';return'unassigned'};
+  
+  $("#admin-view").innerHTML=`
+    <div class="admin-card">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <div style="width:56px;height:56px;border-radius:999px;background:var(--accentLight);display:grid;place-items:center"><i class="fa-solid fa-motorcycle" style="font-size:24px;color:var(--accent)"></i></div>
+        <div><div style="font-weight:700;font-size:18px;color:var(--accentDark)">${escapeHtml(app.name)}</div><div class="muted">${escapeHtml(app.email)} | ${escapeHtml(app.phone)}</div><div class="muted" style="font-size:12px">Zone: ${escapeHtml(app.deliveryFrom||'')} to ${escapeHtml(app.deliveryTo||'')}</div></div>
+      </div>
+      
+      <h4 style="margin:0 0 10px;font-family:Poppins;color:var(--accentDark)">Earnings Dashboard</h4>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
+        <div class="earning-box"><div class="amt">${money(todayEarning)}</div><div class="lbl">Today</div></div>
+        <div class="earning-box"><div class="amt">${money(weekEarning)}</div><div class="lbl">This Week</div></div>
+        <div class="earning-box"><div class="amt">${money(monthEarning)}</div><div class="lbl">This Month</div></div>
+        <div class="earning-box" style="background:#E6F7EE; border-color:var(--success);"><div class="amt" style="color:var(--success)">${money(totalEarning)}</div><div class="lbl">Total Payout</div></div>
+      </div>
+
+      <h4 style="margin:0 0 10px;font-family:Poppins;color:var(--accentDark)">Delivered Orders Dashboard</h4>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
+        <div class="earning-box" style="background:#F0FDF4; border-color:#86EFAC;"><div class="amt" style="color:#166534">${todayOrders}</div><div class="lbl">Orders Today</div></div>
+        <div class="earning-box" style="background:#F0FDF4; border-color:#86EFAC;"><div class="amt" style="color:#166534">${weekOrders}</div><div class="lbl">Orders This Week</div></div>
+        <div class="earning-box" style="background:#F0FDF4; border-color:#86EFAC;"><div class="amt" style="color:#166534">${monthOrders}</div><div class="lbl">Orders This Month</div></div>
+        <div class="earning-box" style="background:#F0FDF4; border-color:#86EFAC;"><div class="amt" style="color:#166534">${stats.delivered}</div><div class="lbl">Total Delivered</div></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
+        <div style="text-align:center;padding:10px;background:var(--accentLight);border-radius:10px"><div style="font-weight:700;font-size:20px;color:var(--accent)">${stats.total}</div><div class="muted" style="font-size:11px">Total Orders</div></div>
+        <div style="text-align:center;padding:10px;background:#E0F2FE;border-radius:10px"><div style="font-weight:700;font-size:20px;color:#0284C7">${stats.accepted}</div><div class="muted" style="font-size:11px">Accepted</div></div>
+        <div style="text-align:center;padding:10px;background:#F3E8FF;border-radius:10px"><div style="font-weight:700;font-size:20px;color:#7C3AED">${stats.pickedUp}</div><div class="muted" style="font-size:11px">Picked Up</div></div>
+        <div style="text-align:center;padding:10px;background:#E6F7EE;border-radius:10px"><div style="font-weight:700;font-size:20px;color:var(--success)">${stats.delivered}</div><div class="muted" style="font-size:11px">Delivered</div></div>
+      </div>
+
+      <h4 style="margin:0 0 10px;font-family:Poppins;color:var(--accentDark)">Order History (${myOrders.length})</h4>
+      ${myOrders.length===0?'<div class="muted">No orders accepted yet.</div>':myOrders.map(o=>`
+        <div style="padding:10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer" onclick="routeTo('#/orders/${o.orderId}')">
+          <div class="row"><strong style="color:var(--accentDark)">#${escapeHtml(o.orderId)}</strong><span class="del-status-chip ${delStatusClass(o.deliveryStatus||'Accepted')}">${escapeHtml(o.deliveryStatus||'Accepted')}</span></div>
+          <div class="row" style="margin-top:4px"><div class="muted" style="font-size:13px">${escapeHtml(o.customer?.name||'')} — ${escapeHtml(o.items?.map(i=>i.name).join(', ')||'')}</div><div style="font-weight:700;color:var(--accentDark)">Payout: ${money(o.deliveryPayout !== undefined ? o.deliveryPayout : (typeof o.items?.[0]?.shipping === 'number' ? o.items[0].shipping : 50))}</div></div>
+          <div class="muted" style="font-size:11px">${new Date(o.createdAt).toLocaleString()}</div>
+        </div>`).join('')}
+      <div style="margin-top:12px"><a class="btn btn-outline btn-sm" href="#/delivery"><i class="fa-solid fa-arrow-left"></i> Back</a></div>
+    </div>`;
+}
+
+function renderReviews(){
+  $("#admin-title").textContent="All Reviews";
+  const sorted=[...RATINGS].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  $("#admin-view").innerHTML=`
+    <div style="display:flex;flex-direction:column;gap:10px">
+    ${sorted.length===0?'<div class="admin-card muted">No reviews yet.</div>':sorted.map(r=>{
+      const p=PRODUCTS.find(x=>x.id===r.productId);
+      return`<div class="admin-card" data-key="${r.firebaseKey}" style="display:flex;gap:12px;align-items:start;padding:12px">
+        ${p?`<img src="${p.imageUrls?.[0]||''}" style="width:48px;height:48px;object-fit:cover;border-radius:10px;border:1px solid var(--line)">`:''}
+        <div style="flex:1"><div style="font-weight:700;color:var(--accentDark)">${p?escapeHtml(p.name):'Unknown'}</div><div class="review-stars" style="margin:2px 0">${renderStarIcons(r.rating)}</div>
+          ${r.reviewText?`<div style="font-size:13px;color:#444">${escapeHtml(r.reviewText)}</div>`:''}
+          <div class="muted" style="font-size:11px">${escapeHtml(r.userName||r.userEmail||'Anonymous')} — ${r.createdAt?new Date(r.createdAt).toLocaleString():''}</div>
+        </div>
+        <button class="btn btn-sm btn-danger rv-del"><i class="fa-solid fa-trash"></i></button>
+      </div>`}).join('')}
+    </div>`;
+  $$(".rv-del").forEach(btn=>btn.addEventListener("click",(e)=>{const card=e.target.closest("[data-key]");if(confirm("Delete this review?")){db.ref('ratings/'+card.dataset.key).remove().then(()=>toast("Deleted!"))}}));
+}
+
+async function compressToDataURL(file,maxW=1200,maxH=1200,quality=.85){const img=await fileToImage(file);const[w,h]=fitRect(img.naturalWidth,img.naturalHeight,maxW,maxH);const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);return c.toDataURL("image/jpeg",quality)}
+function fitRect(w,h,mW,mH){const r=Math.min(mW/w,mH/h,1);return[Math.round(w*r),Math.round(h*r)]}
+function fileToImage(file){return new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>{const img=new Image();img.onload=()=>res(img);img.onerror=rej;img.src=fr.result};fr.onerror=rej;fr.readAsDataURL(file)})}
   
